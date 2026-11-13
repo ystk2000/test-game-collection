@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>草むしり</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: fixed;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+            background-color: #5D4037;
+        }
+
+        /* UIコンテナ */
+        #ui-container {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+            z-index: 2147483647; /* 最前面 */
+            display: none; /* 最初は非表示 */
+            
+            /* チラつき防止 */
+            transform: translateZ(0); 
+            -webkit-transform: translateZ(0);
+        }
+
+        .hud-panel {
+            display: inline-block;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            color: #fff;
+            border: 2px solid rgba(255,255,255,0.2);
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+
+        /* ゲームエリア */
+        #world-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+            z-index: 1; 
+            transform: translateZ(0);
+        }
+
+        #roots-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%; 
+            height: 100%;
+            z-index: 1; 
+            pointer-events: none;
+            overflow: visible; 
+        }
+
+        .bg-panel {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 100vw;
+            background-image: url('https://gdp-nlp-chat.cdn.sfmji.com/synclub-nlp-chat/gemini_image_generate_2f6972ef-2115-4d56-b066-d60b953eaf76_2026-01-28-10:32:10_4385be42-1bd3-4d99-8c51-ce35f5d33f4e_1.png');
+            background-repeat: repeat-x;
+            background-size: auto 100%;
+            z-index: 0; 
+            pointer-events: none;
+        }
+
+        .weed {
+            position: absolute;
+            background-repeat: no-repeat;
+            background-position: bottom center;
+            background-size: contain;
+            cursor: grab;
+            touch-action: none;
+            transform-origin: bottom center;
+            will-change: transform, top, left;
+        }
+        
+        .weed:active {
+            cursor: grabbing;
+        }
+
+        @keyframes sway {
+            0% { transform: rotate(-4deg) scale(1); }
+            50% { transform: rotate(4deg) scale(1.02); }
+            100% { transform: rotate(-4deg) scale(1); }
+        }
+
+        .weed.swaying {
+            animation-name: sway;
+            animation-timing-function: ease-in-out;
+            animation-iteration-count: infinite;
+        }
+
+        .weed-type-a {
+            width: 90px;
+            height: 90px;
+            background-image: url('https://aigcap.cdn.sfmji.com/tti-img/segment/synclut_pulsar_mcp/image/fbd10b2c3e763cb8629c3adbdcac9e56_1768826605672513534.png');
+        }
+
+        .weed-type-b {
+            width: 70px;
+            height: 110px;
+            background-image: url('https://aigcap.cdn.sfmji.com/tti-img/segment/synclut_pulsar_mcp/image/4911020a347759b8c4209409a7dd6e92_1768826599709024741.png');
+        }
+
+        .dirt-particle {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 2000; 
+            opacity: 1;
+        }
+
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(62, 39, 35, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000; 
+            color: #EFEBE9;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 48px;
+            margin-bottom: 40px;
+            font-weight: 900;
+            color: #8BC34A;
+            text-shadow: 3px 3px 0 #33691E;
+            letter-spacing: 2px;
+        }
+
+        button {
+            background: #689F38;
+            border: none;
+            border-bottom: 6px solid #33691E;
+            color: #fff;
+            padding: 16px 40px;
+            font-size: 24px;
+            border-radius: 60px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.1s;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            margin: 10px;
+            min-width: 220px;
+        }
+
+        button:active {
+            transform: translateY(6px);
+            border-bottom: 0px solid #33691E;
+            margin-top: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        button.secondary {
+            background: #FF9800;
+            border-bottom: 6px solid #E65100;
+        }
+
+        #game-over-screen { display: none; }
+        .score-display { font-size: 60px; font-weight: bold; color: #FFEB3B; }
+
+    </style>
+</head>
+<body>
+    
+    <!-- 全体の移動を行うコンテナ -->
+    <div id="world-container">
+        <!-- 根っこレイヤー -->
+        <svg id="roots-layer" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <div id="start-screen">
+        <h1>草むしり</h1>
+        <button onclick="startGame()">作業開始</button>
+    </div>
+
+    <div id="game-over-screen">
+        <h1>作業終了</h1>
+        <p>本日の収穫</p>
+        <div class="score-display"><span id="final-score">0</span> 本</div>
+        <br>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button onclick="restartGame()">最初から再作業</button>
+            <button class="secondary" onclick="continueGame()">作業を続ける</button>
+        </div>
+    </div>
+
+    <!-- UIコンテナ -->
+    <div id="ui-container">
+        <div class="hud-panel">
+            残り: <span id="timer">60</span>秒 | 収穫: <span id="score">0</span>本 | ステージ: <span id="stage">1</span>
+        </div>
+    </div>
+
+    <script>
+        // --- Audio System ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playPopSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'triangle';
+            const baseFreq = 150 + Math.random() * 100;
+            
+            osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq * (2.5 + Math.random()), audioCtx.currentTime + 0.1);
+            
+            gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+        }
+
+        // --- Game Setup ---
+        const worldContainer = document.getElementById('world-container');
+        const rootsLayer = document.getElementById('roots-layer');
+        const uiContainer = document.getElementById('ui-container');
+        const scoreEl = document.getElementById('score');
+        const timerEl = document.getElementById('timer');
+        const stageEl = document.getElementById('stage');
+        const finalScoreEl = document.getElementById('final-score');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+
+        let displayScore = 0; 
+        let internalScore = 0; 
+        let timeLeft = 60;
+        let stageCount = 1;
+        let gameActive = false;
+        let isEndless = false;
+        let gameTimerInterval;
+        
+        let currentScrollX = 0;
+        let weedCountInStage = 0;
+
+        function updateLayout() {
+            const screenHeight = window.innerHeight;
+            const exclusionHeight = screenHeight >= 812 ? 98 : 74;
+            uiContainer.style.top = (exclusionHeight + 20) + 'px';
+        }
+        window.addEventListener('resize', updateLayout);
+        updateLayout();
+
+        document.body.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+        document.body.addEventListener('touchstart', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+
+        // --- Game Logic ---
+
+        function startGame() {
+            initAudio();
+            displayScore = 0;
+            internalScore = 0;
+            timeLeft = 60;
+            stageCount = 1;
+            currentScrollX = 0;
+            isEndless = false;
+            
+            updateUI();
+            // ゲーム開始時にHUDを表示
+            uiContainer.style.display = 'block';
+            
+            // 位置リセット
+            worldContainer.style.transform = `translateX(0px)`;
+            
+            // world-containerのリセット
+            const children = Array.from(worldContainer.children);
+            children.forEach(child => {
+                if (child.id !== 'roots-layer') {
+                    child.remove();
+                }
+            });
+            
+            const currentRoots = document.getElementById('roots-layer');
+            if (currentRoots) {
+                currentRoots.innerHTML = '';
+            }
+
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+
+            gameActive = true;
+            spawnStage(0);
+            startTimer();
+        }
+
+        function updateUI() {
+            scoreEl.innerText = displayScore;
+            timerEl.innerText = isEndless ? "∞" : timeLeft;
+            stageEl.innerText = stageCount;
+        }
+
+        function continueGame() {
+            isEndless = true;
+            gameActive = true;
+            updateUI();
+            
+            // 【修正】無限モード再開時にHUDを再表示する
+            uiContainer.style.display = 'block';
+            
+            gameOverScreen.style.display = 'none';
+            if (weedCountInStage <= 0) {
+                nextStage();
+            }
+        }
+
+        function restartGame() {
+            startGame();
+        }
+
+        function startTimer() {
+            clearInterval(gameTimerInterval);
+            gameTimerInterval = setInterval(() => {
+                if (isEndless) return;
+                timeLeft--;
+                updateUI();
+                if (timeLeft <= 0) endGame();
+            }, 1000);
+        }
+
+        function checkStageClear() {
+            if (weedCountInStage <= 0) {
+                setTimeout(nextStage, 500);
+            }
+        }
+
+        function nextStage() {
+            if (!gameActive) return;
+            stageCount++;
+            updateUI();
+
+            const screenWidth = window.innerWidth;
+            currentScrollX -= screenWidth;
+            
+            worldContainer.style.transform = `translateX(${currentScrollX}px)`;
+            
+            const nextStageStartX = -currentScrollX;
+            spawnStage(nextStageStartX);
+        }
+
+        function spawnStage(offsetX) {
+            const bgPanel = document.createElement('div');
+            bgPanel.className = 'bg-panel';
+            bgPanel.style.left = offsetX + 'px';
+            worldContainer.insertBefore(bgPanel, worldContainer.firstChild);
+
+            const h = window.innerHeight;
+            const w = window.innerWidth;
+            const topLimit = parseInt(uiContainer.style.top) + 60;
+            const minY = Math.max(topLimit, h * 0.4);
+            const maxY = h - 120;
+            
+            const baseCount = 15;
+            const increment = (stageCount - 1) * 5;
+            const count = baseCount + increment;
+            
+            weedCountInStage = count;
+
+            for(let i=0; i<count; i++) {
+                const x = offsetX + Math.random() * (w - 90) + 10;
+                const y = Math.random() * (maxY - minY) + minY;
+                createWeed(x, y);
+            }
+        }
+
+        function createWeed(x, y) {
+            const weed = document.createElement('div');
+            const type = Math.random() > 0.5 ? 'weed-type-a' : 'weed-type-b';
+            weed.className = `weed ${type} swaying`; 
+            
+            weed.style.animationDuration = (2 + Math.random() * 2) + 's';
+            weed.style.animationDelay = (Math.random() * -4) + 's'; 
+
+            const baseScale = 0.8 + Math.random() * 0.4;
+            const resistanceLimit = 50 + Math.random() * 70;
+            
+            weed.style.left = x + 'px';
+            weed.style.top = y + 'px';
+            weed.style.transform = `scale(${baseScale})`; 
+            
+            weed.style.zIndex = 100 + Math.floor(y); 
+
+            let rootPaths = [];
+            let isDragging = false;
+            let startX = 0, startY = 0;
+            let currentX = x, currentY = y;
+            
+            const relRootX = (type === 'weed-type-a' ? 45 : 35);
+            const relRootY = (type === 'weed-type-a' ? 85 : 105);
+            const rootOriginX = x + relRootX;
+            const rootOriginY = y + relRootY;
+
+            const startDrag = (e) => {
+                if (!gameActive) return;
+                isDragging = true;
+                e.stopPropagation();
+
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                startX = clientX;
+                startY = clientY;
+
+                weed.classList.remove('swaying');
+                weed.style.transition = 'none'; 
+                weed.style.filter = 'brightness(1.2)';
+            };
+
+            const moveDrag = (e) => {
+                if (!isDragging) return;
+                if (e.cancelable) e.preventDefault();
+
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                const deltaX = clientX - startX;
+                let deltaY = clientY - startY;
+
+                if (deltaY > 0) deltaY = 0; 
+
+                const dragFactor = 0.5;
+                const moveX = deltaX * dragFactor;
+                const moveY = deltaY * dragFactor;
+
+                currentX = x + moveX;
+                currentY = y + moveY;
+
+                const pullAngle = Math.atan2(moveY, moveX) * (180 / Math.PI);
+                let tilt = pullAngle + 90;
+                if (tilt > 180) tilt -= 360;
+                if (tilt < -180) tilt += 360;
+                tilt = Math.max(-60, Math.min(60, tilt * 0.8));
+
+                const jitterX = (Math.random() - 0.5) * 8; 
+                const jitterY = (Math.random() - 0.5) * 8;
+
+                const dist = Math.sqrt(moveX*moveX + moveY*moveY);
+                
+                const stretchRatio = Math.min(dist / resistanceLimit, 1.0); 
+                const scaleY = 1.0 + stretchRatio * 1.0; 
+                const scaleX = 1.0 - stretchRatio * 0.5; 
+                
+                weed.style.left = (currentX + jitterX) + 'px';
+                weed.style.top = (currentY + jitterY) + 'px';
+                weed.style.transform = `rotate(${tilt}deg) scale(${baseScale * scaleX}, ${baseScale * scaleY})`;
+
+                drawRoots(
+                    currentX + relRootX, 
+                    currentY + relRootY, 
+                    rootOriginX, 
+                    rootOriginY, 
+                    dist
+                );
+
+                if (dist > resistanceLimit) {
+                    pullWeed(tilt);
+                    isDragging = false;
+                }
+            };
+
+            const drawRoots = (weedX, weedY, groundX, groundY, dist) => {
+                const currentRootsLayer = document.getElementById('roots-layer');
+                if (!currentRootsLayer) return;
+
+                let numRoots = 1;
+                if (dist > 30) numRoots = 3;
+                if (dist > 60) numRoots = 5;
+
+                while (rootPaths.length < numRoots) {
+                    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    p.setAttribute("stroke", "#4E342E"); 
+                    p.setAttribute("stroke-width", "0");
+                    p.setAttribute("fill", "none");
+                    p.setAttribute("stroke-linecap", "round");
+                    currentRootsLayer.appendChild(p);
+                    rootPaths.push(p);
+                }
+
+                for (let i = 0; i < rootPaths.length; i++) {
+                    const path = rootPaths[i];
+                    const spreadIndex = i - Math.floor(numRoots / 2);
+                    const spreadGroundX = groundX + spreadIndex * (dist * 0.15); 
+                    const width = Math.max(1, (6 - dist * 0.05) - Math.abs(spreadIndex)); 
+                    path.setAttribute("stroke-width", width);
+                    const midX = (weedX + spreadGroundX) / 2 + (Math.random()-0.5)*15;
+                    const midY = (weedY + groundY) / 2 + (Math.random()-0.5)*15;
+                    path.setAttribute("d", `M${weedX},${weedY} Q${midX},${midY} ${spreadGroundX},${groundY}`);
+                }
+            };
+
+            const endDrag = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                clearRoots();
+                weed.style.transition = 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                weed.style.left = x + 'px';
+                weed.style.top = y + 'px';
+                weed.style.transform = `scale(${baseScale})`;
+                weed.style.filter = 'brightness(1)';
+                setTimeout(() => {
+                    weed.classList.add('swaying');
+                    weed.style.transition = '';
+                }, 500);
+            };
+
+            const clearRoots = () => {
+                rootPaths.forEach(p => p.remove());
+                rootPaths = [];
+            };
+
+            const pullWeed = (tiltAngle) => {
+                displayScore++;
+                
+                if (!isEndless) {
+                    internalScore++;
+                }
+
+                weedCountInStage--;
+                updateUI();
+                playPopSound();
+                clearRoots();
+                
+                spawnParticles(rootOriginX + currentScrollX, rootOriginY);
+
+                weed.style.transition = 'all 0.5s ease-out';
+                weed.style.opacity = '0';
+                
+                weed.style.transformOrigin = 'top center';
+
+                let finalRotate = 0;
+                if (tiltAngle > 0) {
+                    finalRotate = tiltAngle + 360 + Math.random() * 180;
+                } else {
+                    finalRotate = tiltAngle - 360 - Math.random() * 180;
+                }
+
+                const rad = (tiltAngle - 90) * Math.PI / 180; 
+                const flyX = Math.cos(rad) * 200;
+                const flyY = Math.sin(rad) * 200;
+
+                weed.style.top = (currentY + flyY) + 'px';
+                weed.style.left = (currentX + flyX) + 'px';
+                
+                weed.style.transform = `rotate(${finalRotate}deg) scale(0.5)`;
+
+                setTimeout(() => weed.remove(), 500);
+
+                checkStageClear();
+            };
+
+            weed.addEventListener('mousedown', startDrag);
+            window.addEventListener('mousemove', moveDrag);
+            window.addEventListener('mouseup', endDrag);
+
+            weed.addEventListener('touchstart', startDrag, {passive: false});
+            window.addEventListener('touchmove', moveDrag, {passive: false});
+            window.addEventListener('touchend', endDrag);
+
+            worldContainer.appendChild(weed);
+        }
+
+        const particles = [];
+
+        function spawnParticles(screenX, screenY) {
+            const colors = ['#3E2723', '#4E342E', '#5D4037', '#212121', '#1B1B1B']; 
+            const particleCount = 20;
+
+            for (let i = 0; i < particleCount; i++) {
+                const el = document.createElement('div');
+                el.className = 'dirt-particle';
+                const size = 10 + Math.random() * 12;
+                el.style.width = size + 'px';
+                el.style.height = size + 'px';
+                el.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                document.body.appendChild(el);
+
+                const vx = (Math.random() - 0.5) * 8; 
+                const vy = -(Math.random() * 9 + 6); 
+
+                particles.push({
+                    el: el,
+                    x: screenX,
+                    y: screenY - 10,
+                    vx: vx,
+                    vy: vy,
+                    life: 1.0 
+                });
+            }
+
+            if (particles.length > 0 && !isLoopingParticles) {
+                updateParticles();
+            }
+        }
+
+        let isLoopingParticles = false;
+        const gravity = 0.8; 
+
+        function updateParticles() {
+            if (particles.length === 0) {
+                isLoopingParticles = false;
+                return;
+            }
+            isLoopingParticles = true;
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += gravity; 
+                p.life -= 0.02; 
+                p.el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+                p.el.style.opacity = p.life;
+
+                if (p.life <= 0 || p.y > window.innerHeight) {
+                    p.el.remove();
+                    particles.splice(i, 1);
+                }
+            }
+            requestAnimationFrame(updateParticles);
+        }
+
+        function endGame() {
+            gameActive = false;
+            clearInterval(gameTimerInterval);
+            finalScoreEl.innerText = displayScore;
+            gameOverScreen.style.display = 'flex';
+            // ゲーム終了時にHUDを非表示にする
+            uiContainer.style.display = 'none';
+            
+            if (window.parent) {
+                window.parent.postMessage({
+                    type: 'gameOver',
+                    score: internalScore
+                }, '*');
+            }
+        }
+
+    </script>
+</body>
+</html>

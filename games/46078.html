@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ドロップキック道</title>
+    <style>
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: none;
+            outline: none;
+            box-sizing: border-box;
+        }
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #333;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 #000;
+            z-index: 10;
+        }
+
+        #center-message {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 50px;
+            font-weight: bold;
+            text-shadow: 3px 3px 0 #000, 0 0 10px #fff;
+            pointer-events: none;
+            text-align: center;
+            z-index: 15;
+            letter-spacing: 2px;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            z-index: 5;
+        }
+        .touch-btn {
+            flex: 1;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.0); 
+        }
+        
+        .controls-hint {
+            position: absolute;
+            bottom: 30px;
+            width: 50%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 20px;
+            pointer-events: none;
+            font-weight: bold;
+            transition: color 0.1s;
+        }
+        #hint-left { left: 0; }
+        #hint-right { left: 50%; }
+
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+        }
+
+        #game-over-screen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 25;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.7);
+        }
+
+    </style>
+</head>
+<body>
+
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div>SCORE: <span id="score-display">0</span><br><span style="font-size:14px; color:#aaa;">BEST: <span id="best-score-display">0</span></span></div>
+        <div style="text-align: right;">LEVEL: <span id="level-display">1</span></div>
+    </div>
+
+    <div id="center-message"></div>
+
+    <div id="controls">
+        <div id="btn-left" class="touch-btn"></div>
+        <div id="btn-right" class="touch-btn"></div>
+    </div>
+    
+    <div id="hint-left" class="controls-hint">◀︎ LEFT JUMP / DROPKICK</div>
+    <div id="hint-right" class="controls-hint">RIGHT JUMP / DROPKICK ▶︎</div>
+
+    <div id="start-screen">
+        <div style="position:relative; display:flex; flex-direction:column; align-items:center;">
+            <canvas id="title-char-canvas" width="100" height="100" style="position:absolute; top:-100px; pointer-events:none;"></canvas>
+            <div style="color:white; font-size:38.4px; font-weight:bold; margin-bottom:40px; text-shadow: 4px 4px 0 #000; letter-spacing:2px;">ドロップキック道</div>
+        </div>
+        <div id="start-btn" style="color:white; font-size:24px; font-weight:bold; background:#888; padding:15px 40px; border-radius:10px; cursor:pointer; text-shadow: 2px 2px 0 #000; transition: background 0.2s;">LOADING...</div>
+    </div>
+
+    <div id="game-over-screen">
+        <div id="game-over-text" style="text-align:center;"></div>
+        <div id="retry-btn" style="margin-top:30px; color:white; font-size:24px; font-weight:bold; background:#f00; padding:15px 40px; border-radius:10px; cursor:pointer; text-shadow: 2px 2px 0 #000; transition: background 0.2s; pointer-events:auto;">再挑戦</div>
+    </div>
+
+    <script>
+        // [REQUIRED] Calculate top exclusion zone
+        const screenHeight = window.innerHeight;
+        const topExclusionHeight = screenHeight >= 812 ? 98 : 74;
+        document.getElementById('ui-layer').style.top = (topExclusionHeight + 10) + 'px';
+
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let STAGE_WIDTH = 1200;
+        let GROUND_Y = 0;
+        const WALL_W = 20;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            STAGE_WIDTH = Math.max(1200, canvas.width * 1.5);
+            GROUND_Y = canvas.height - 100;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        const charImg = new Image();
+        charImg.crossOrigin = "Anonymous";
+        let imgLoaded = false;
+        
+        charImg.onload = () => { 
+            imgLoaded = true;
+            
+            // タイトル画面のキャラ描画
+            const tCanvas = document.getElementById('title-char-canvas');
+            const tCtx = tCanvas.getContext('2d');
+            const colorC = createColoredChar(charImg, '#ffffff');
+            
+            tCtx.save();
+            tCtx.translate(50, 50); // キャンバスの中心
+            tCtx.rotate(-Math.PI / 2); // 右方向ドロップキックの姿勢
+            let scale = 1 / 8; // 1/8サイズ
+            
+            tCtx.scale(scale * 2, scale * 0.5); 
+            tCtx.drawImage(colorC, -colorC.width/2, -colorC.height/2);
+            tCtx.restore();
+
+            const startBtn = document.getElementById('start-btn');
+            startBtn.innerText = 'ゲーム開始';
+            startBtn.style.background = '#f05';
+        };
+        charImg.src = 'https://aigcap.cdn.sfmji.com/tti-img/segment/synclut_pulsar_mcp/image/c717630b7722aa19975f689c3d12a735_1793258449077035831.png';
+
+        const COLORS = ['#ff0055', '#00ffff', '#00ff00', '#ffff00', '#ff00ff', '#ff8800', '#8888ff'];
+        let playerColor = '#ffffff';
+
+        let bestScore = parseInt(localStorage.getItem('dropkickBestScore') || '0');
+        document.getElementById('best-score-display').innerText = bestScore;
+
+        document.getElementById('start-btn').onclick = () => {
+            if (!imgLoaded) return;
+            document.getElementById('start-screen').style.display = 'none';
+            initGame();
+        };
+
+        document.getElementById('retry-btn').onclick = () => {
+            document.getElementById('game-over-screen').style.display = 'none';
+            initGame();
+        };
+
+        function createColoredChar(img, color) {
+            const c = document.createElement('canvas');
+            c.width = img.width + 16; 
+            c.height = img.height + 16;
+            const context = c.getContext('2d');
+            
+            const blackC = document.createElement('canvas');
+            blackC.width = img.width; blackC.height = img.height;
+            const bCtx = blackC.getContext('2d');
+            bCtx.drawImage(img, 0, 0);
+            bCtx.globalCompositeOperation = 'source-in';
+            bCtx.fillStyle = 'black';
+            bCtx.fillRect(0, 0, img.width, img.height);
+
+            const offsets = [[-4,-4], [0,-4], [4,-4], [-4,0], [4,0], [-4,4], [0,4], [4,4]];
+            for(let off of offsets) context.drawImage(blackC, 8 + off[0], 8 + off[1]);
+            
+            const colorC = document.createElement('canvas');
+            colorC.width = img.width; colorC.height = img.height;
+            const cCtx = colorC.getContext('2d');
+            cCtx.drawImage(img, 0, 0);
+            cCtx.globalCompositeOperation = 'source-in';
+            cCtx.fillStyle = color;
+            cCtx.fillRect(0, 0, img.width, img.height);
+            
+            context.drawImage(colorC, 8, 8);
+            return c;
+        }
+
+        // 市松模様の背景パターン生成
+        let bgPattern = null;
+        function createBgPattern() {
+            const pCanv = document.createElement('canvas');
+            pCanv.width = 160;
+            pCanv.height = 160;
+            const pCtx = pCanv.getContext('2d');
+            pCtx.fillStyle = '#333'; 
+            pCtx.fillRect(0, 0, 160, 160);
+            pCtx.fillStyle = '#444'; 
+            pCtx.fillRect(0, 0, 80, 80);
+            pCtx.fillRect(80, 80, 80, 80);
+            return ctx.createPattern(pCanv, 'repeat');
+        }
+
+        const GRAVITY = 0.6;
+
+        let gameState = 'START'; 
+        let p1;
+        let enemies = [];
+        let score = 0;
+        let level = 1;
+
+        let cameraX = 0;
+        let cameraZoom = 1.0;
+        let hitStop = 0;
+        let cameraShakeY = 0;
+        let cameraShakeTimer = 0;
+        let pendingHits = [];
+        let levelTransitionTimer = 0;
+        let comboTexts = [];
+
+        class Fighter {
+            constructor(isPlayer, x, color) {
+                this.isPlayer = isPlayer;
+                this.color = color;
+                this.coloredImg = createColoredChar(charImg, color); 
+                this.w = 40;
+                this.h = 80;
+                this.x = x;
+                this.y = GROUND_Y;
+                this.vx = 0;
+                this.vy = 0;
+                this.state = 'idle'; 
+                this.hp = isPlayer ? 5 : 3;
+                this.facing = isPlayer ? 1 : -1;
+                this.recoveryTimer = 0;
+                this.hasDoubleJumped = false;
+                this.canWallKick = true;
+                this.koRotation = 0;
+                this.koRotSpeed = 0;
+                this.cpuTimer = 0;
+                
+                this.airHitCount = 0; 
+                this.hitTargets = new Set(); 
+            }
+
+            getHitbox() {
+                if (this.state === 'recovery') {
+                    return { x: this.x - 20, y: this.y + 60, w: 80, h: 20 };
+                }
+                if (this.state === 'dropkick') {
+                    let cx = this.x + this.w / 2;
+                    let topY = this.y + this.h - 40; 
+                    return { x: cx - 40, y: topY, w: 80, h: 40 };
+                }
+                return { x: this.x, y: this.y, w: this.w, h: this.h };
+            }
+
+            getAttackbox() {
+                if (this.state === 'ko' && this.vy !== 0) {
+                    return this.getHitbox();
+                }
+                if (this.state === 'dropkick') {
+                    let cx = this.x + this.w / 2;
+                    let topY = this.y + this.h - 40;
+                    if (this.facing === 1) return { x: cx + 20, y: topY, w: 20, h: 40 }; 
+                    else return { x: cx - 40, y: topY, w: 20, h: 40 }; 
+                }
+                if (this.state === 'jump' && this.vy > 0) {
+                    return { x: this.x + 10, y: this.y + this.h - 20, w: this.w - 20, h: 20 };
+                }
+                return null;
+            }
+
+            update(target) {
+                if (this.state !== 'dropkick' && this.state !== 'recovery' && this.state !== 'hurt' && this.state !== 'ko') {
+                    if (target) {
+                        this.facing = this.x + this.w/2 < target.x + target.w/2 ? 1 : -1;
+                    }
+                }
+
+                this.vy += GRAVITY;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // 地面判定
+                if (this.y + this.h >= GROUND_Y) {
+                    this.y = GROUND_Y - this.h;
+                    
+                    if (this.state === 'jump' || (this.state === 'hurt' && this.vy > 0)) {
+                        this.state = 'idle';
+                        this.vx = 0;
+                        this.vy = 0;
+                        this.hasDoubleJumped = false;
+                        this.canWallKick = true;
+                        this.airHitCount = 0;
+                    } 
+                    else if (this.state === 'dropkick') {
+                        this.state = 'recovery';
+                        this.vx = 0;
+                        this.vy = 0;
+                        this.recoveryTimer = 45;
+                        this.airHitCount = 0;
+                        cameraShakeTimer = 15; 
+                    }
+                    else if (this.state === 'ko' && this.vy > 0) {
+                        if (this.vy > 3) cameraShakeTimer = 15;
+                        this.vx = 0;
+                        this.vy = 0;
+                    }
+                }
+
+                // 壁・見えない壁判定
+                let box = this.getHitbox();
+                let wallTop = GROUND_Y - 800; // 壁の高さ
+                
+                // 左壁
+                if (box.x <= WALL_W) {
+                    this.x -= (box.x - WALL_W); // どんな高さでも画面外には出さない（見えない壁）
+                    if (this.y + this.h > wallTop && this.y < GROUND_Y) { 
+                        // 壁キック可能エリア
+                        if (this.state === 'dropkick' && this.canWallKick) {
+                            this.wallKick(1);
+                        } else {
+                            this.vx = 0; 
+                        }
+                    } else { 
+                        // 壁キック不可能エリア
+                        this.canWallKick = false;
+                        this.vx = 0;
+                    }
+                } 
+                // 右壁
+                else if (box.x + box.w >= STAGE_WIDTH - WALL_W) {
+                    this.x -= (box.x + box.w - (STAGE_WIDTH - WALL_W)); // 見えない壁
+                    if (this.y + this.h > wallTop && this.y < GROUND_Y) { 
+                        // 壁キック可能エリア
+                        if (this.state === 'dropkick' && this.canWallKick) {
+                            this.wallKick(-1);
+                        } else {
+                            this.vx = 0;
+                        }
+                    } else { 
+                        // 壁キック不可能エリア
+                        this.canWallKick = false;
+                        this.vx = 0;
+                    }
+                }
+
+                if (this.state === 'recovery') {
+                    this.recoveryTimer--;
+                    if (this.recoveryTimer <= 0) {
+                        this.state = 'idle';
+                        this.hasDoubleJumped = false;
+                        this.canWallKick = true;
+                    }
+                }
+            }
+
+            wallKick(dir) {
+                this.state = 'jump';
+                this.vx = dir * 14; 
+                this.vy = -14;
+                this.facing = dir;
+                this.hasDoubleJumped = false; 
+                this.canWallKick = true;
+                this.hitTargets.clear(); 
+            }
+
+            inputAction(dirX) {
+                if (this.state === 'idle') {
+                    this.state = 'jump';
+                    this.vy = -16;
+                    this.vx = dirX * 8;
+                    this.facing = dirX;
+                    this.canWallKick = true;
+                    this.hitTargets.clear(); 
+                } 
+                else if (this.state === 'jump') {
+                    if (!this.hasDoubleJumped) {
+                        this.state = 'dropkick';
+                        this.facing = dirX; 
+                        this.vy = -5;
+                        this.vx = dirX * 16;
+                        this.hasDoubleJumped = true;
+                        this.canWallKick = true;
+                        this.hitTargets.clear(); 
+                    }
+                }
+            }
+
+            takeDamage(pushDir, damageAmount = 1) {
+                let wasAlive = (this.state !== 'ko');
+
+                if (wasAlive) {
+                    this.hp -= damageAmount;
+                }
+
+                this.hitTargets.clear(); 
+
+                if (this.hp <= 0 && wasAlive) {
+                    this.state = 'ko';
+                    this.vy = -14;
+                    this.vx = pushDir * 12;
+                    this.koRotation = 0;
+                    this.koRotSpeed = pushDir * 0.2; 
+                    return { gaveDamage: damageAmount > 0, wasKilled: true };
+                } else if (!wasAlive) {
+                    this.vy = -14;
+                    this.vx = pushDir * 12;
+                    this.koRotSpeed = pushDir * 0.2;
+                    return { gaveDamage: false, wasKilled: false };
+                } else {
+                    this.state = 'hurt';
+                    this.vy = -10; 
+                    this.vx = pushDir * 8; 
+                    return { gaveDamage: damageAmount > 0, wasKilled: false };
+                }
+            }
+
+            updateCPU(target) {
+                if (this.state === 'hurt' || this.state === 'recovery' || this.state === 'ko') return;
+                this.cpuTimer++;
+
+                if (this.cpuTimer > 15) {
+                    this.cpuTimer = 0;
+                    let dist = target.x - this.x;
+                    
+                    if (this.state === 'idle') {
+                        if (Math.random() < 0.7) this.inputAction(this.facing);
+                        else this.inputAction(-this.facing);
+                    } 
+                    else if (this.state === 'jump') {
+                        if (Math.abs(dist) < 250 && Math.random() < 0.8) {
+                            this.inputAction(this.facing);
+                        } 
+                    }
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                
+                let cx = this.x + this.w / 2;
+                let cy = this.y + this.h / 2;
+                
+                if (this.state === 'recovery') {
+                    ctx.translate(cx, this.y + this.h - this.w/2);
+                    ctx.rotate(-Math.PI / 2 * this.facing);
+                    ctx.scale(this.facing, 1);
+                    ctx.drawImage(this.coloredImg, -this.w/2 - 8, -this.h/2 - 8, this.w + 16, this.h + 16);
+                } 
+                else if (this.state === 'dropkick') {
+                    let topY = this.y + this.h - 40;
+                    ctx.translate(cx, topY + 20);
+                    ctx.rotate(-Math.PI / 2 * this.facing);
+                    ctx.scale(this.facing, 1);
+                    ctx.drawImage(this.coloredImg, -this.w/2 - 8, -this.h/2 - 8, this.w + 16, this.h + 16);
+                }
+                else if (this.state === 'hurt') {
+                    ctx.translate(cx, cy);
+                    ctx.rotate((this.facing * -30) * Math.PI / 180);
+                    ctx.scale(this.facing, 1);
+                    ctx.drawImage(this.coloredImg, -this.w/2 - 8, -this.h/2 - 8, this.w + 16, this.h + 16);
+                }
+                else if (this.state === 'ko') {
+                    if (this.y + this.h < GROUND_Y) {
+                        this.koRotation += this.koRotSpeed;
+                        ctx.translate(cx, cy);
+                    } else {
+                        this.koRotation = this.koRotSpeed > 0 ? Math.PI/2 : -Math.PI/2;
+                        ctx.translate(cx, this.y + this.h - this.w/2);
+                    }
+                    ctx.rotate(this.koRotation);
+                    ctx.scale(this.facing, 1);
+                    ctx.drawImage(this.coloredImg, -this.w/2 - 8, -this.h/2 - 8, this.w + 16, this.h + 16);
+                }
+                else {
+                    ctx.translate(cx, cy);
+                    ctx.scale(this.facing, 1);
+                    ctx.drawImage(this.coloredImg, -this.w/2 - 8, -this.h/2 - 8, this.w + 16, this.h + 16);
+                }
+                
+                ctx.restore();
+            }
+
+            drawUI(ctx, zoom) {
+                ctx.save();
+                let cx = this.x + this.w / 2;
+                let cy = this.y - 15;
+                ctx.translate(cx, cy);
+                ctx.scale(1/zoom, 1/zoom);
+
+                ctx.textAlign = 'center';
+                
+                ctx.font = '12px Arial';
+                let heartStr = '';
+                for(let i=0; i<this.hp; i++) heartStr += '❤';
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'black';
+                ctx.strokeText(heartStr, 0, -10);
+                ctx.fillStyle = '#ff3366';
+                ctx.fillText(heartStr, 0, -10);
+
+                ctx.restore();
+            }
+        }
+
+        function initGame() {
+            score = 0;
+            level = 1;
+            p1 = new Fighter(true, STAGE_WIDTH / 2, playerColor);
+            
+            cameraX = p1.x - canvas.width / 2;
+            cameraZoom = 1.0;
+            cameraShakeY = 0;
+            cameraShakeTimer = 0;
+            comboTexts = [];
+            
+            
+            updateUI();
+            startLevel();
+        }
+
+        function startLevel() {
+            gameState = 'READY';
+            document.getElementById('center-message').innerHTML = 'READY';
+            
+            // READY表示のタイミングで自キャラの体力を1回復
+            if (p1 && p1.hp > 0) {
+                p1.hp = Math.min(5, p1.hp + 1);
+                updateUI();
+            }
+            
+            let eColor = COLORS[(level - 1) % COLORS.length];
+
+            enemies = [];
+            for (let i = 0; i < level; i++) {
+                let x;
+                let attempts = 0;
+                do {
+                    // 自キャラのX軸付近を避けて生成
+                    x = STAGE_WIDTH / 2 + (Math.random() < 0.5 ? -250 : 250) + (Math.random() * 200 - 100);
+                    x = Math.max(100, Math.min(STAGE_WIDTH - 100, x));
+                    attempts++;
+                } while (p1 && Math.abs(x - p1.x) < 200 && attempts < 10);
+                
+                let e = new Fighter(false, x, eColor);
+                e.y = -200 - i * 150; 
+                enemies.push(e);
+            }
+
+            setTimeout(() => {
+                if(gameState === 'GAMEOVER') return;
+                gameState = 'PLAYING';
+                document.getElementById('center-message').innerHTML = 'FIGHT!!';
+                setTimeout(() => { 
+                    if (gameState === 'PLAYING') document.getElementById('center-message').innerHTML = ''; 
+                }, 1000);
+            }, 1000);
+            
+            updateUI();
+        }
+
+        function checkIntersect(rect1, rect2) {
+            if (!rect1 || !rect2) return false;
+            return rect1.x < rect2.x + rect2.w &&
+                   rect1.x + rect1.w > rect2.x &&
+                   rect1.y < rect2.y + rect2.h &&
+                   rect1.y + rect1.h > rect2.y;
+        }
+
+        function resolveCollisions() {
+            let allFighters = [p1, ...enemies];
+            for (let i = 0; i < allFighters.length; i++) {
+                for (let j = i + 1; j < allFighters.length; j++) {
+                    let f1 = allFighters[i];
+                    let f2 = allFighters[j];
+                    
+                    let f1IsRot = (f1.state === 'ko' && f1.vy !== 0);
+                    let f2IsRot = (f2.state === 'ko' && f2.vy !== 0);
+
+                    // 回転吹っ飛び同士は一切ヒット判定を行わずスキップする
+                    if (f1IsRot && f2IsRot) {
+                        continue;
+                    }
+
+                    if (!f1.isPlayer && !f2.isPlayer) {
+                        let f1RotAtk = f1IsRot ? f1.getAttackbox() : null;
+                        let f2RotAtk = f2IsRot ? f2.getAttackbox() : null;
+                        
+                        if (f1RotAtk && checkIntersect(f1RotAtk, f2.getHitbox()) && !f1.hitTargets.has(f2)) {
+                            if (f2.state !== 'ko') hitStop = 12;
+                            pendingHits.push({ type: 'hit', target: f2, attacker: f1, dir: f1.vx > 0 ? 1 : -1, isRot: true });
+                        }
+                        if (f2RotAtk && checkIntersect(f2RotAtk, f1.getHitbox()) && !f2.hitTargets.has(f1)) {
+                            if (f1.state !== 'ko') hitStop = 12;
+                            pendingHits.push({ type: 'hit', target: f1, attacker: f2, dir: f2.vx > 0 ? 1 : -1, isRot: true });
+                        }
+                        continue;
+                    }
+
+                    let f1Atk = f1.getAttackbox();
+                    let f2Atk = f2.getAttackbox();
+                    let f1Box = f1.getHitbox();
+                    let f2Box = f2.getHitbox();
+
+                    let f1Hitf2 = checkIntersect(f1Atk, f2Box);
+                    let f2Hitf1 = checkIntersect(f2Atk, f1Box);
+                    let clash = checkIntersect(f1Atk, f2Atk);
+
+                    if (f2.isPlayer && (f2.state === 'hurt' || f2.state === 'ko')) {
+                        f1Hitf2 = false;
+                        clash = false;
+                    }
+                    if (f1.isPlayer && (f1.state === 'hurt' || f1.state === 'ko')) {
+                        f2Hitf1 = false;
+                        clash = false;
+                    }
+
+                    if (f1Hitf2 && f1.hitTargets.has(f2)) f1Hitf2 = false;
+                    if (f2Hitf1 && f2.hitTargets.has(f1)) f2Hitf1 = false;
+                    if (clash && (f1.hitTargets.has(f2) || f2.hitTargets.has(f1))) clash = false;
+
+                    if (f1IsRot && f1Hitf2) {
+                        pendingHits.push({ type: 'hit', target: f2, attacker: f1, dir: f1.vx > 0 ? 1 : -1, isRot: true });
+                    }
+                    if (f2IsRot && f2Hitf1) {
+                        pendingHits.push({ type: 'hit', target: f1, attacker: f2, dir: f2.vx > 0 ? 1 : -1, isRot: true });
+                    }
+
+                    if (f1IsRot || f2IsRot) continue;
+
+                    if (f1Atk && f2Atk && (f1Hitf2 || f2Hitf1 || clash)) {
+                        if (Math.abs(f1Atk.y - f2Atk.y) <= 5) {
+                            clash = true;
+                            f1Hitf2 = false;
+                            f2Hitf1 = false;
+                        } else if (f1Atk.y < f2Atk.y) {
+                            f1Hitf2 = true;
+                            f2Hitf1 = false;
+                            clash = false;
+                        } else {
+                            f2Hitf1 = true;
+                            f1Hitf2 = false;
+                            clash = false;
+                        }
+                    }
+
+                    if (clash) {
+                        hitStop = 8; 
+                        pendingHits.push({ type: 'clash', f1: f1, f2: f2 });
+                        createHitEffect((f1.x + f2.x)/2 + 20, (f1.y + f2.y)/2 + 20);
+                        continue;
+                    }
+
+                    if (f1Hitf2) {
+                        hitStop = 12;
+                        pendingHits.push({ type: 'hit', target: f2, attacker: f1, dir: f1.facing, isRot: false });
+                        createHitEffect(f2.x + f2.w/2, f2.y + 20);
+                    }
+
+                    if (f2Hitf1) {
+                        hitStop = 12;
+                        pendingHits.push({ type: 'hit', target: f1, attacker: f2, dir: f2.facing, isRot: false });
+                        createHitEffect(f1.x + f1.w/2, f1.y + 20);
+                    }
+                }
+            }
+        }
+
+        function applyPendingHits() {
+            for (let hit of pendingHits) {
+                if (hit.type === 'clash') {
+                    hit.f1.hitTargets.add(hit.f2);
+                    hit.f2.hitTargets.add(hit.f1);
+                    hit.f1.state = 'jump'; hit.f1.vy = -10; hit.f1.vx = hit.f1.facing * -8; hit.f1.hasDoubleJumped = false; hit.f1.canWallKick = true; hit.f1.hitTargets.clear();
+                    hit.f2.state = 'jump'; hit.f2.vy = -10; hit.f2.vx = hit.f2.facing * -8; hit.f2.hasDoubleJumped = false; hit.f2.canWallKick = true; hit.f2.hitTargets.clear();
+                } else if (hit.type === 'hit') {
+                    hit.attacker.hitTargets.add(hit.target);
+                    
+                    let dmg = hit.isRot ? 0 : 1;
+                    let result = hit.target.takeDamage(hit.dir, dmg);
+
+                    if (hit.attacker === p1 && !hit.isRot && hit.target !== p1 && result.gaveDamage) {
+                        p1.airHitCount++;
+                        let comboBonus = 0;
+                        if (p1.airHitCount >= 2) {
+                            comboTexts.push({ x: hit.target.x, y: hit.target.y - 40, text: p1.airHitCount + " COMBO!", life: 45 });
+                            comboBonus = p1.airHitCount * 50; 
+                        }
+                        
+                        score += 100 + comboBonus;
+                        updateUI();
+                    }
+
+                    if (!hit.isRot && hit.target.state !== 'ko') {
+                        hit.attacker.state = 'jump'; 
+                        hit.attacker.vy = -8; 
+                        hit.attacker.vx = hit.attacker.facing * -5; 
+                        hit.attacker.hasDoubleJumped = false;
+                        hit.attacker.canWallKick = true;
+                    }
+                }
+            }
+            pendingHits = [];
+        }
+
+        let particles = [];
+        function createHitEffect(x, y) {
+            for(let i=0; i<20; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 30,
+                    vy: (Math.random() - 0.5) * 30,
+                    life: 15
+                });
+            }
+        }
+        function drawEffects(ctx) {
+            ctx.fillStyle = '#fff';
+            for(let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                if (hitStop === 0) { 
+                    p.x += p.vx; p.y += p.vy; p.life--;
+                }
+                ctx.globalAlpha = p.life / 15;
+                ctx.fillRect(p.x, p.y, 8, 8);
+                ctx.globalAlpha = 1.0;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+            
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 30px Arial';
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#000';
+            for(let i = comboTexts.length - 1; i >= 0; i--) {
+                let ct = comboTexts[i];
+                if (hitStop === 0) {
+                    ct.y -= 1.5;
+                    ct.life--;
+                }
+                ctx.globalAlpha = Math.min(1.0, ct.life / 15);
+                
+                ctx.save();
+                ctx.translate(ct.x, ct.y);
+                ctx.scale(1/cameraZoom, 1/cameraZoom);
+                ctx.strokeText(ct.text, 0, 0);
+                ctx.fillStyle = '#ffcc00';
+                ctx.fillText(ct.text, 0, 0);
+                ctx.restore();
+                
+                ctx.globalAlpha = 1.0;
+                if (ct.life <= 0) comboTexts.splice(i, 1);
+            }
+            ctx.restore();
+        }
+
+        function updateUI() {
+            document.getElementById('score-display').innerText = score;
+            document.getElementById('level-display').innerText = level;
+        }
+
+        function updateCamera() {
+            let closestEnemy = null;
+            let minDist = Infinity;
+            for (let e of enemies) {
+                if (e.state === 'ko' && e.y >= GROUND_Y - e.h) continue; 
+                let d = Math.abs(e.x - p1.x);
+                if (d < minDist) {
+                    minDist = d;
+                    closestEnemy = e;
+                }
+            }
+            
+            let targetObj = closestEnemy ? closestEnemy : p1;
+
+            let midX = (p1.x + targetObj.x) / 2;
+            let distX = Math.abs(p1.x - targetObj.x) + 400; 
+            let distY = Math.abs(p1.y - targetObj.y) + 300; 
+            
+            let targetZoomX = canvas.width / distX;
+            let targetZoomY = canvas.height / distY;
+            let targetZoom = Math.min(targetZoomX, targetZoomY);
+            
+            targetZoom = Math.max(0.4, Math.min(1.0, targetZoom));
+            cameraZoom += (targetZoom - cameraZoom) * 0.1;
+
+            let targetX = midX - (canvas.width / 2) / cameraZoom;
+            
+            if (targetX < 0) targetX = 0;
+            if (targetX > STAGE_WIDTH - canvas.width / cameraZoom) {
+                targetX = STAGE_WIDTH - canvas.width / cameraZoom;
+            }
+            
+            cameraX += (targetX - cameraX) * 0.1;
+            
+            if (cameraShakeTimer > 0) {
+                cameraShakeY = (Math.random() - 0.5) * 30;
+                cameraShakeTimer--;
+            } else {
+                cameraShakeY = 0;
+            }
+        }
+
+        function update() {
+            if (gameState === 'PLAYING' || gameState === 'READY') {
+                if (hitStop > 0) {
+                    hitStop--;
+                    if (hitStop === 0) applyPendingHits();
+                    return; 
+                }
+
+                p1.update(enemies.length > 0 ? enemies[0] : null);
+                
+                let aliveEnemiesCount = 0;
+                for (let e of enemies) {
+                    e.update(p1);
+                    if (gameState === 'PLAYING' && e.y > -100) e.updateCPU(p1);
+                    if (!(e.state === 'ko' && e.y >= GROUND_Y - e.h)) {
+                        aliveEnemiesCount++;
+                    }
+                }
+
+                resolveCollisions();
+                updateCamera();
+
+                if (p1.hp <= 0 && p1.y + p1.h >= GROUND_Y && p1.state === 'ko') {
+                    levelTransitionTimer++;
+                    if (levelTransitionTimer === 30) {
+                        document.getElementById('center-message').innerHTML = '<span style="color:red; font-size:80px; font-style:italic;">K.O.</span>';
+                    }
+                    if (levelTransitionTimer >= 60) {
+                        endGame();
+                    }
+                } 
+                else if (aliveEnemiesCount === 0 && enemies.length > 0 && p1.hp > 0) {
+                    levelTransitionTimer++;
+                    if (levelTransitionTimer >= 60) {
+                        level++;
+                        levelTransitionTimer = 0;
+                        startLevel();
+                    }
+                } else {
+                    levelTransitionTimer = 0;
+                }
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            
+            if (hitStop > 0) {
+                ctx.translate((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
+            }
+            
+            ctx.translate(0, GROUND_Y);
+            ctx.scale(cameraZoom, cameraZoom);
+            ctx.translate(-cameraX, -GROUND_Y + cameraShakeY);
+
+            if (!bgPattern) bgPattern = createBgPattern();
+            ctx.fillStyle = bgPattern;
+            ctx.fillRect(-2000, -2000, STAGE_WIDTH + 4000, GROUND_Y + 2000);
+
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(-2000, -2000, 2000, GROUND_Y + 2000); 
+            ctx.fillRect(STAGE_WIDTH, -2000, 2000, GROUND_Y + 2000); 
+
+            ctx.fillStyle = '#555';
+            ctx.fillRect(-2000, GROUND_Y, STAGE_WIDTH + 4000, canvas.height / cameraZoom + 1000); 
+            
+            let wallTop = GROUND_Y - 800; 
+            let wallHeight = GROUND_Y - wallTop;
+            ctx.fillRect(0, wallTop, WALL_W, wallHeight); 
+            ctx.fillRect(STAGE_WIDTH - WALL_W, wallTop, WALL_W, wallHeight); 
+            
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 4 / cameraZoom;
+            ctx.beginPath();
+            ctx.moveTo(WALL_W, GROUND_Y);
+            ctx.lineTo(STAGE_WIDTH - WALL_W, GROUND_Y);
+            ctx.moveTo(WALL_W, wallTop);
+            ctx.lineTo(WALL_W, GROUND_Y);
+            ctx.moveTo(STAGE_WIDTH - WALL_W, wallTop);
+            ctx.lineTo(STAGE_WIDTH - WALL_W, GROUND_Y);
+            ctx.stroke();
+
+            if (p1) {
+                for (let e of enemies) e.draw(ctx);
+                p1.draw(ctx);
+                
+                for (let e of enemies) {
+                    if (e.hp > 0 || e.state !== 'ko') e.drawUI(ctx, cameraZoom);
+                }
+                if (p1.hp > 0 || p1.state !== 'ko') p1.drawUI(ctx, cameraZoom);
+            }
+
+            drawEffects(ctx);
+            
+            ctx.restore();
+
+            // 画面外キャラクターのマーカー描画 (HUD)
+            function drawMarker(f) {
+                if (f.state === 'ko' && f.y >= GROUND_Y - f.h) return;
+                
+                let cx = f.x + f.w/2;
+                // まさに体の中心（高さのちょうど半分の位置）を指すように指定
+                let cy = f.y + f.h/2; 
+                
+                // スクリーン座標へ変換
+                let scrX = (cx - cameraX) * cameraZoom;
+                let scrY = (cy - GROUND_Y + cameraShakeY) * cameraZoom + GROUND_Y;
+                
+                let margin = 20;
+                let isOut = scrX < margin || scrX > canvas.width - margin || scrY < margin || scrY > canvas.height - margin;
+                if (!isOut) return;
+
+                // 画面端にクランプ
+                let markerX = Math.max(margin, Math.min(canvas.width - margin, scrX));
+                let markerY = Math.max(margin, Math.min(canvas.height - margin, scrY));
+
+                let dx = scrX - canvas.width/2;
+                let dy = scrY - canvas.height/2;
+                let angle = Math.atan2(dy, dx);
+
+                ctx.save();
+                ctx.translate(markerX, markerY);
+                ctx.rotate(angle);
+                
+                ctx.fillStyle = f.color;
+                ctx.beginPath();
+                ctx.moveTo(15, 0); 
+                ctx.lineTo(-10, -10);
+                ctx.lineTo(-5, 0);
+                ctx.lineTo(-10, 10);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            if (gameState === 'PLAYING' && p1) {
+                drawMarker(p1);
+                for (let e of enemies) {
+                    drawMarker(e);
+                }
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        function endGame() {
+            gameState = 'GAMEOVER';
+            
+            
+            let isNewRecord = false;
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('dropkickBestScore', bestScore);
+                document.getElementById('best-score-display').innerText = bestScore;
+                isNewRecord = true;
+            }
+
+            let msgHtml = `<span style="color:white; font-size:40px;">GAME OVER</span><br><br><span style="font-size:30px; color:#ff0;">FINAL SCORE: ${score}</span>`;
+            if (isNewRecord) {
+                msgHtml += `<br><br><span style="font-size:24px; color:#f05; text-shadow: 1px 1px 0 #fff;">NEW RECORD!</span>`;
+                window.parent.postMessage({ type: 'gameOver', score: score }, '*');
+            }
+            
+            document.getElementById('game-over-text').innerHTML = msgHtml;
+            document.getElementById('center-message').innerHTML = ''; 
+            document.getElementById('game-over-screen').style.display = 'flex';
+        }
+
+        function handleInput(dirX) {
+            if (gameState === 'START' || gameState === 'GAMEOVER') return;
+            if (gameState === 'PLAYING') {
+                p1.inputAction(dirX);
+            }
+        }
+
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+        const hintLeft = document.getElementById('hint-left');
+        const hintRight = document.getElementById('hint-right');
+
+        function setupButton(element, dir, hintElem) {
+            const press = (e) => {
+                e.preventDefault();
+                hintElem.style.color = '#ffffff';
+                handleInput(dir);
+            };
+            const release = (e) => {
+                e.preventDefault();
+                hintElem.style.color = 'rgba(255, 255, 255, 0.3)';
+            };
+
+            element.addEventListener('touchstart', press, { passive: false });
+            element.addEventListener('touchend', release);
+            element.addEventListener('touchcancel', release);
+            
+            element.addEventListener('mousedown', press);
+            element.addEventListener('mouseup', release);
+            element.addEventListener('mouseleave', release);
+        }
+
+        setupButton(btnLeft, -1, hintLeft);
+        setupButton(btnRight, 1, hintRight);
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                hintLeft.style.color = '#ffffff';
+                handleInput(-1);
+            }
+            if (e.key === 'ArrowRight') {
+                hintRight.style.color = '#ffffff';
+                handleInput(1);
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft') hintLeft.style.color = 'rgba(255, 255, 255, 0.3)';
+            if (e.key === 'ArrowRight') hintRight.style.color = 'rgba(255, 255, 255, 0.3)';
+        });
+
+        loop();
+
+    </script>
+</body>
+</html>

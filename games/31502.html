@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NECROS</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DotGothic16&display=swap');
+
+        :root {
+            --cga-cyan: #55ffff;
+            --cga-magenta: #ff55ff;
+            --cga-white: #ffffff;
+            --cga-black: #000000;
+            --cga-gray: #555555;
+            --bg-color: #050505;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--cga-cyan);
+            font-family: 'DotGothic16', 'Courier New', monospace;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            display: flex;
+            overflow: hidden;
+        }
+
+        #scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.1) 50%,
+                rgba(0,0,0,0.1)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 999;
+            opacity: 0.5;
+        }
+
+        .left-panel {
+            width: 60%;
+            height: 100%;
+            position: relative;
+            border-right: 4px solid var(--cga-gray);
+            background-color: #111;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .right-panel {
+            width: 40%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: #000;
+        }
+
+        #visual-display {
+            flex-grow: 1;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            border-bottom: 4px solid var(--cga-gray);
+            position: relative;
+            min-height: 50%;
+            overflow: hidden; 
+        }
+
+        .bg-pre-op { background-image: url('https://gdp-nlp-chat.cdn.sfmji.com/synclub-nlp-chat/gemini_image_generate_e56e8180-c288-4760-b705-015a291ddf2b_2026-01-11-13:07:33_cb3dfad4-6e55-462b-b2a8-2657837a4e49_1.png'); }
+        .bg-surgery { background-image: url('https://gdp-nlp-chat.cdn.sfmji.com/synclub-nlp-chat/gemini_image_generate_9e1c8441-9bd8-4eed-b5be-323f3c42b097_2026-01-11-13:02:49_deaafe3f-e2e8-4d8a-a92c-458f2871e985_1.png'); }
+        .bg-win { background-image: url('https://gdp-nlp-chat.cdn.sfmji.com/synclub-nlp-chat/gemini_image_generate_699cbaf0-3881-4a59-a5c7-fc5c0a91f13f_2026-01-11-13:07:33_bc874005-e663-4e04-ad04-52262c52df6b_1.png'); }
+        .bg-loss { background-image: url('https://gdp-nlp-chat.cdn.sfmji.com/synclub-nlp-chat/gemini_image_generate_98be7eeb-b5b5-4dad-86c9-0e1a442b2f80_2026-01-11-13:07:30_d2786418-78a9-48e2-abdc-2bceff82fec3_1.png'); }
+
+        #doctor-face {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 15vh;
+            height: 15vh;
+            background-image: url('https://gdp-nlp-chat.cdn.sfmji.com/synclub-nlp-chat/gemini_image_generate_149056a7-1e94-45d1-8965-17c406405014_2026-01-11-13:07:32_dabf1672-0042-4375-b773-f05b4ef9279c_1.png');
+            background-size: cover;
+            border: 2px solid var(--cga-gray);
+            z-index: 10;
+            transition: transform 0.2s;
+            transform-origin: center center;
+        }
+
+        .breathe-normal { animation: breathe 3s infinite ease-in-out; }
+        @keyframes breathe { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+
+        .face-death { 
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            bottom: auto !important;
+            right: auto !important;
+            width: 100% !important;  
+            height: 100% !important;
+            background-size: contain !important; 
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+            transform: translate(-50%, -50%) scale(2.0) !important; 
+            z-index: 50 !important;
+            border: none !important;
+            filter: contrast(1.5) brightness(0.6) hue-rotate(-20deg) !important;
+            background-color: transparent !important;
+            animation: creepy-zoom 5s linear forwards !important; 
+        }
+
+        @keyframes creepy-zoom { 
+            0% { transform: translate(-50%, -50%) scale(2.0); } 
+            100% { transform: translate(-50%, -50%) scale(4.5); } 
+        }
+
+        #log-area {
+            height: 35%;
+            padding: 20px;
+            font-size: clamp(14px, 1.8vh, 22px);
+            color: var(--cga-white);
+            overflow-y: auto;
+            background: #000;
+            line-height: 1.5;
+            border-top: 4px solid #222;
+        }
+
+        .log-entry { margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 4px; }
+        .log-success { color: var(--cga-cyan); }
+        .log-danger { color: var(--cga-magenta); font-weight: bold;}
+        .log-info { color: #aaaaaa; }
+
+        .cursor::after {
+            content: '█';
+            animation: blink-cursor 1s infinite;
+            margin-left: 5px;
+            color: var(--cga-cyan);
+        }
+        @keyframes blink-cursor { 0% {opacity: 1;} 50% {opacity: 0;} 100% {opacity: 1;} }
+
+        #monitor-area {
+            flex-shrink: 0;
+            padding: 10px;
+            background: #051111;
+            border-bottom: 4px solid var(--cga-gray);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        #status-box {
+            background: #000;
+            border: 2px solid var(--cga-magenta);
+            padding: 10px;
+            margin-top: 10px;
+            text-align: center;
+            min-height: 3em;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        #status-text {
+            color: var(--cga-magenta);
+            font-size: clamp(14px, 2vh, 28px);
+            font-weight: bold;
+            animation: blink 2s infinite;
+        }
+
+        .bar-container { width: 100%; height: 10px; background: #333; margin-top: 5px; position: relative; }
+        .bar-fill { height: 100%; transition: width 0.2s; }
+        #hr-bar { background: var(--cga-magenta); width: 100%; }
+        
+        .hr-display {
+            font-size: 2rem;
+            color: var(--cga-magenta);
+            font-family: monospace;
+            text-align: right;
+        }
+
+        #controls-area {
+            flex-grow: 1;
+            padding: 5px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: repeat(8, 1fr);
+            grid-gap: 5px;
+            overflow-y: auto;
+        }
+
+        .cmd-btn {
+            background: #000;
+            border: 2px solid var(--cga-cyan);
+            color: var(--cga-cyan);
+            font-family: 'DotGothic16', monospace;
+            font-size: clamp(10px, 1.5vh, 16px);
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px;
+            text-align: center;
+            box-shadow: 0 0 5px rgba(85, 255, 255, 0.1);
+        }
+
+        .sys-btn {
+            background: #111;
+            border: 2px solid var(--cga-white);
+            color: var(--cga-white);
+            font-family: 'DotGothic16', monospace;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 15px 40px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+        }
+        .sys-btn:hover { background: #333; }
+
+        .cmd-btn:hover {
+            background: var(--cga-cyan);
+            color: #000;
+            box-shadow: 0 0 10px var(--cga-cyan);
+        }
+        .cmd-btn:active { transform: scale(0.98); }
+        .cmd-btn:disabled { border-color: #333; color: #555; pointer-events: none; }
+
+        #start-overlay, #end-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .title-logo {
+            font-size: clamp(4rem, 10vw, 7rem);
+            color: var(--cga-magenta);
+            text-shadow: 4px 4px var(--cga-cyan);
+            margin: 0;
+            letter-spacing: 0.1em;
+            line-height: 1;
+        }
+        
+        .ruby {
+            font-size: clamp(1rem, 2vw, 1.5rem);
+            color: var(--cga-white);
+            letter-spacing: 0.5em;
+            margin-bottom: -10px;
+            display: block;
+        }
+
+        /* モーダル用スタイル */
+        #record-modal {
+            display: none;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%; max-width: 600px;
+            height: 80%; max-height: 800px;
+            background: rgba(0, 5, 5, 0.95);
+            border: 2px solid var(--cga-cyan);
+            z-index: 4000;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            box-shadow: 0 0 20px rgba(85, 255, 255, 0.2);
+        }
+        #record-modal.active { display: flex; }
+        .close-btn {
+            position: absolute; top: 10px; right: 15px;
+            color: var(--cga-cyan); font-size: 30px;
+            cursor: pointer; background: none; border: none;
+            font-family: monospace; line-height: 1; padding: 0;
+        }
+        .close-btn:hover { color: var(--cga-magenta); }
+        #record-list {
+            overflow-y: auto; flex-grow: 1; margin-top: 20px;
+            display: flex; flex-direction: column; gap: 8px;
+            padding-right: 10px;
+        }
+        .record-item {
+            padding: 12px; border: 1px solid #333;
+            font-family: 'DotGothic16', monospace; font-size: clamp(12px, 2vh, 18px);
+            display: flex; justify-content: flex-start; align-items: center;
+        }
+        .record-item.cleared { color: var(--cga-cyan); border-color: var(--cga-cyan); background: rgba(85, 255, 255, 0.05); }
+        .record-item.locked { color: var(--cga-gray); border-style: dashed; background: rgba(0, 0, 0, 0.5); }
+        .record-no { width: 50px; color: var(--cga-magenta); }
+
+        /* スクロールバー装飾 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: var(--cga-gray); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--cga-cyan); }
+
+        .hidden { display: none !important; }
+        
+        #ecg-canvas { width: 100%; height: 8vh; background: #000; border: 1px solid #1a3333; }
+        .report-text { min-height: 100px; text-align: left; white-space: pre-wrap; font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="scanlines"></div>
+
+    <div id="start-overlay">
+        <div style="text-align: center;">
+            <span class="ruby">ネクロス</span>
+            <h1 class="title-logo">NECROS</h1>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 20px; margin-top: 50px; align-items: center;">
+            <button class="sys-btn" onclick="startGame(true)">執刀開始</button>
+            <button class="sys-btn" style="font-size: 1.2rem; padding: 10px 30px; border-color: var(--cga-gray); color: var(--cga-gray);" onclick="openRecords()">手術記録</button>
+        </div>
+    </div>
+
+    <!-- 手術記録モーダル -->
+    <div id="record-modal">
+        <button class="close-btn" onclick="closeRecords()">×</button>
+        <h2 style="margin:0; color:var(--cga-magenta); text-align:center; font-size: 1.8rem; letter-spacing: 0.1em;">COLLECTION</h2>
+        <div id="record-list"></div>
+    </div>
+
+    <div id="end-overlay" class="hidden">
+        <h1 id="end-title" style="font-size: clamp(2rem, 5vw, 4rem); margin-bottom: 20px;"></h1>
+        <div style="width: 80%; max-width: 800px; background: #110000; border: 1px solid var(--cga-magenta); padding: 20px; margin-bottom: 20px;">
+            <p id="end-msg" class="report-text cursor"></p>
+        </div>
+        <p style="font-size: 1.5rem; color: var(--cga-cyan);">スコア: <span id="final-score">0</span></p>
+        <div style="display: flex; gap: 20px; margin-top: 30px;">
+            <button id="btn-next" class="sys-btn hidden" onclick="startGame(false)">次の患者へ</button>
+            <button id="btn-title" class="sys-btn hidden" onclick="returnToTitle()">タイトルへ</button>
+        </div>
+    </div>
+
+    <div class="left-panel">
+        <div id="visual-display" class="bg-pre-op">
+            <div id="doctor-face"></div>
+        </div>
+        <div id="log-area"></div>
+    </div>
+
+    <div class="right-panel">
+        <div id="monitor-area">
+            <div id="top-buffer" style="height: 0px;"></div>
+            
+            <div style="display:flex; justify-content:space-between; align-items: flex-end; color:#555; font-size:0.8rem;">
+                <span>VITAL MONITOR</span>
+                <span class="hr-display">HR: <span id="hr-value">80</span></span>
+            </div>
+            <div class="bar-container"><div id="hr-bar" class="bar-fill"></div></div>
+            <canvas id="ecg-canvas" width="400" height="60" style="margin-bottom:5px;"></canvas>
+            
+            <div id="status-box">
+                <div id="status-text">準備中</div>
+            </div>
+        </div>
+
+        <div id="controls-area"></div>
+    </div>
+</div>
+
+<script>
+    const screenHeight = window.innerHeight;
+    const topExclusionHeight = screenHeight >= 812 ? 98 : 74;
+    document.getElementById('top-buffer').style.height = (topExclusionHeight / 2) + 'px';
+
+    const TOOLS = {
+        ANESTHESIA: { name: "麻酔", action: "麻酔導入。意識消失を確認。" },
+        ANTISEPTIC: { name: "消毒液", action: "術野の滅菌完了。" },
+        SCALPEL:    { name: "メス", action: "切開/剥離に成功。" },
+        RETRACTOR:  { name: "鈎(開創)", action: "術野を展開。視野良好。" },
+        SUCTION:    { name: "吸引機", action: "血液・廃液を除去。" },
+        FORCEPS:    { name: "鉗子", action: "対象を把持・摘出。" },
+        E_KNIFE:    { name: "電気メス", action: "凝固止血・切離完了。" },
+        CLIP:       { name: "クリップ", action: "血管を結紮・遮断。" },
+        GRAFT:      { name: "人工血管", action: "置換・吻合完了。" },
+        IRRIGATION: { name: "洗浄", action: "生理食塩水で洗浄。" },
+        SUTURES:    { name: "縫合", action: "創部を閉鎖。" },
+        BANDAGE:    { name: "包帯", action: "術後保護完了。" },
+        DEFIB:      { name: "AED", action: "除細動実行。洞調律復帰。" },
+        CARDIO_DRUG:{ name: "強心剤", action: "心収縮力増強。血圧安定。" },
+        TRANSFUSION:{ name: "輸血", action: "循環血液量を維持。" },
+        POOP:       { name: "ウンコ投入", action: "..." }
+    };
+
+    // 全症例の定義
+    const SCENARIO_NAMES = {
+        "TUMOR": "後腹膜腫瘍摘出術",
+        "ANEURYSM": "脳動脈瘤クリッピング術",
+        "TRAUMA": "腹部刺創緊急止血術",
+        "BYPASS": "大腿膝窩動脈バイパス術",
+        "APPENDICITIS": "急性虫垂炎切除術",
+        "CESAREAN": "緊急帝王切開術",
+        "CHOLECYST": "胆嚢摘出術",
+        "HERNIA": "鼠径ヘルニア修復術",
+        "TRANSPLANT": "生体腎移植術",
+        "FOREIGN_BODY": "消化管内異物除去術",
+        "VALVE": "大動脈弁置換術",
+        "ABSCESS": "深頸部膿瘍切開排膿術",
+        "COMPOSITE_A": "癒着剥離および腫瘍摘出術",
+        "COMPOSITE_B": "多発外傷ダメージコントロール",
+        "MYSTERY": "未知寄生虫摘出術",
+        "GHOST": "心霊的外科治療"
+    };
+
+    let gameActive = false;
+    let requiredSequence = [];
+    let currentTask = null;
+    let currentScenarioType = "";
+    let score = 0;
+    let combo = 0;
+    let stage = 1;
+    let lastActionTime = 0; 
+    let ecgCtx = document.getElementById('ecg-canvas').getContext('2d');
+    let ecgX = 0;
+    let isFlatline = false;
+    let isTyping = false;
+    let animationFrameId = null;
+    let heartRate = 80;
+    let isMonitorSoundEnabled = true; 
+
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = new AudioContext();
+
+    function checkAudioContext() {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playTone(freq, type, duration) {
+        if (!audioCtx || !isMonitorSoundEnabled) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+    
+    function playHeartbeat() {
+        if (!gameActive || isFlatline) return;
+        playTone(800, 'sawtooth', 0.08); 
+    }
+    
+    function playFlatlineSound() {
+        checkAudioContext();
+        if (!isMonitorSoundEnabled) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 3); 
+    }
+
+    // --- コレクション（手術記録）関連 ---
+    function saveRecord(scenarioId) {
+        let records = JSON.parse(localStorage.getItem('necros_records')) || [];
+        if (!records.includes(scenarioId)) {
+            records.push(scenarioId);
+            localStorage.setItem('necros_records', JSON.stringify(records));
+        }
+    }
+
+    function openRecords() {
+        const modal = document.getElementById('record-modal');
+        const list = document.getElementById('record-list');
+        list.innerHTML = "";
+        let records = JSON.parse(localStorage.getItem('necros_records')) || [];
+        
+        let i = 1;
+        for (const key in SCENARIO_NAMES) {
+            const div = document.createElement('div');
+            const noSpan = document.createElement('span');
+            noSpan.className = "record-no";
+            noSpan.innerText = `No.${i.toString().padStart(2, '0')}`;
+            
+            const titleSpan = document.createElement('span');
+            if (records.includes(key)) {
+                div.className = "record-item cleared";
+                titleSpan.innerText = SCENARIO_NAMES[key];
+            } else {
+                div.className = "record-item locked";
+                titleSpan.innerText = "？？？";
+            }
+            
+            div.appendChild(noSpan);
+            div.appendChild(titleSpan);
+            list.appendChild(div);
+            i++;
+        }
+        modal.classList.add('active');
+    }
+
+    function closeRecords() {
+        document.getElementById('record-modal').classList.remove('active');
+    }
+
+    // --- ゲームフロー関連 ---
+    function returnToTitle() {
+        if(animationFrameId) cancelAnimationFrame(animationFrameId);
+        document.getElementById('end-overlay').classList.add('hidden');
+        document.getElementById('start-overlay').classList.remove('hidden');
+        resetVisuals();
+    }
+    
+    function resetVisuals() {
+        const face = document.getElementById('doctor-face');
+        face.className = 'breathe-normal'; 
+        face.style = ''; 
+        face.style.display = 'block';
+    }
+
+    function generateButtons() {
+        const container = document.getElementById('controls-area');
+        container.innerHTML = "";
+        
+        let keys = Object.keys(TOOLS).filter(k => k !== 'POOP');
+        const poopIndex = Math.floor(Math.random() * (keys.length + 1));
+        keys.splice(poopIndex, 0, 'POOP');
+        
+        keys.forEach(key => {
+            const btn = document.createElement('button');
+            btn.className = 'cmd-btn';
+            btn.innerText = TOOLS[key].name;
+            btn.onclick = () => executeCommand(key);
+            container.appendChild(btn);
+        });
+    }
+
+    function startGame(isNewGame) {
+        checkAudioContext();
+        if(animationFrameId) cancelAnimationFrame(animationFrameId);
+
+        document.getElementById('start-overlay').classList.add('hidden');
+        document.getElementById('end-overlay').classList.add('hidden');
+        
+        if(isNewGame) { 
+            stage = 1; 
+            score = 0; 
+            combo = 0; 
+        } else { 
+            stage++; 
+        }
+
+        document.getElementById('visual-display').className = 'bg-pre-op';
+        resetVisuals();
+        
+        heartRate = 80;
+        isMonitorSoundEnabled = true;
+        
+        document.getElementById('status-text').innerText = "準備中";
+        document.getElementById('end-msg').innerText = "";
+        updateBars();
+        
+        gameActive = true;
+        isFlatline = false;
+        isTyping = false;
+        lastActionTime = Date.now();
+        
+        document.getElementById('log-area').innerHTML = '';
+        typeLog(`CASE ${stage}: オペ開始。`);
+        
+        generateScenario();
+        generateButtons(); 
+        nextTask();
+        enableControlButtons(true);
+        
+        drawECG();
+    }
+    
+    function updateBars() {
+        document.getElementById('hr-value').innerText = Math.floor(heartRate);
+        document.getElementById('hr-bar').style.width = Math.min(100, Math.max(0, heartRate)) + '%';
+        
+        const hrBar = document.getElementById('hr-bar');
+        if(heartRate < 30) hrBar.style.background = 'red';
+        else hrBar.style.background = 'var(--cga-magenta)';
+    }
+
+    function generateScenario() {
+        requiredSequence = [];
+        requiredSequence.push({ status: "患者搬入。意識あり。", tool: "ANESTHESIA", phase: "PRE_OP" });
+        requiredSequence.push({ status: "皮膚が汚染されています", tool: "ANTISEPTIC", phase: "PRE_OP" });
+        requiredSequence.push({ status: "切開が必要です", tool: "SCALPEL", phase: "PRE_OP" });
+        requiredSequence.push({ status: "術野を確保してください", tool: "RETRACTOR", phase: "OPEN" });
+
+        const scenarios = Object.keys(SCENARIO_NAMES);
+        currentScenarioType = scenarios[Math.floor(Math.random() * scenarios.length)];
+        
+        switch(currentScenarioType) {
+            case "TUMOR": 
+                requiredSequence.push({ status: "腫瘍を確認。剥離してください", tool: "SCALPEL", phase: "OPEN" });
+                requiredSequence.push({ status: "腫瘍が遊離しました。摘出", tool: "FORCEPS", phase: "OPEN" });
+                requiredSequence.push({ status: "剥離面から出血！", tool: "E_KNIFE", phase: "OPEN" });
+                break;
+            case "ANEURYSM": 
+                requiredSequence.push({ status: "脳動脈瘤を確認。周囲剥離", tool: "SCALPEL", phase: "OPEN" });
+                requiredSequence.push({ status: "動脈瘤頚部露出。クリップせよ", tool: "CLIP", phase: "OPEN" });
+                break;
+            case "TRAUMA": 
+                requiredSequence.push({ status: "腹腔内出血多量！吸引！", tool: "SUCTION", phase: "OPEN" });
+                requiredSequence.push({ status: "出血点を確認。凝固止血", tool: "E_KNIFE", phase: "OPEN" });
+                requiredSequence.push({ status: "臓器損傷部に破片あり", tool: "FORCEPS", phase: "OPEN" });
+                break;
+            case "BYPASS": 
+                requiredSequence.push({ status: "閉塞血管を確認。遮断せよ", tool: "CLIP", phase: "OPEN" });
+                requiredSequence.push({ status: "人工血管を置換してください", tool: "GRAFT", phase: "OPEN" });
+                break;
+            case "APPENDICITIS": 
+                requiredSequence.push({ status: "炎症を起こした虫垂を確認。剥離", tool: "SCALPEL", phase: "OPEN" });
+                requiredSequence.push({ status: "虫垂基部を結紮せよ", tool: "CLIP", phase: "OPEN" });
+                requiredSequence.push({ status: "虫垂を切除", tool: "E_KNIFE", phase: "OPEN" });
+                requiredSequence.push({ status: "切除した虫垂を搬出", tool: "FORCEPS", phase: "OPEN" });
+                break;
+            case "CESAREAN": 
+                requiredSequence.push({ status: "子宮を切開してください", tool: "SCALPEL", phase: "OPEN" });
+                requiredSequence.push({ status: "羊水を吸引", tool: "SUCTION", phase: "OPEN" });
+                requiredSequence.push({ status: "胎児を娩出します", tool: "FORCEPS", phase: "OPEN" });
+                break;
+            case "CHOLECYST": 
+                requiredSequence.push({ status: "胆嚢周囲を剥離", tool: "SCALPEL", phase: "OPEN" });
+                requiredSequence.push({ status: "胆嚢管をクリッピング", tool: "CLIP", phase: "OPEN" });
+                requiredSequence.push({ status: "胆嚢を肝床から切離", tool: "E_KNIFE", phase: "OPEN" });
+                break;
+            case "HERNIA": 
+                requiredSequence.push({ status: "ヘルニア嚢を剥離", tool: "SCALPEL", phase: "OPEN" });
+                requiredSequence.push({ status: "腹壁欠損部にメッシュ(人工血管代用)を", tool: "GRAFT", phase: "OPEN" });
+                requiredSequence.push({ status: "メッシュを固定", tool: "SUTURES", phase: "OPEN" });
+                break;
+            case "TRANSPLANT": 
+                requiredSequence.push({ status: "不全臓器を摘出", tool: "FORCEPS", phase: "OPEN" });
+                requiredSequence.push({ status: "移植床を洗浄", tool: "IRRIGATION", phase: "OPEN" });
+                requiredSequence.push({ status: "新臓器の血管を吻合(人工血管)", tool: "GRAFT", phase: "OPEN" });
+                break;
+            case "FOREIGN_BODY": 
+                requiredSequence.push({ status: "大量の血液を吸引", tool: "SUCTION", phase: "OPEN" });
+                requiredSequence.push({ status: "異物(コイン)を発見。摘出", tool: "FORCEPS", phase: "OPEN" });
+                break;
+            case "VALVE": 
+                requiredSequence.push({ status: "心臓を切開", tool: "SCALPEL", phase: "OPEN" });
+                requiredSequence.push({ status: "石灰化した弁を切除", tool: "E_KNIFE", phase: "OPEN" });
+                requiredSequence.push({ status: "人工弁を縫着", tool: "GRAFT", phase: "OPEN" });
+                break;
+            case "ABSCESS": 
+                requiredSequence.push({ status: "膿瘍を切開排膿", tool: "SCALPEL", phase: "OPEN" });
+                requiredSequence.push({ status: "膿を吸引", tool: "SUCTION", phase: "OPEN" });
+                break;
+            case "COMPOSITE_A": 
+                requiredSequence.push({ status: "癒着を剥離してください", tool: "SCALPEL", phase: "OPEN" });
+                requiredSequence.push({ status: "癒着部から出血！", tool: "E_KNIFE", phase: "OPEN" });
+                requiredSequence.push({ status: "露出した腫瘍を摘出", tool: "FORCEPS", phase: "OPEN" });
+                break;
+            case "COMPOSITE_B": 
+                requiredSequence.push({ status: "損傷血管をクリップ", tool: "CLIP", phase: "OPEN" });
+                requiredSequence.push({ status: "血腫を除去", tool: "SUCTION", phase: "OPEN" });
+                requiredSequence.push({ status: "臓器の裂傷を縫合", tool: "SUTURES", phase: "OPEN" });
+                break;
+            case "MYSTERY": 
+                requiredSequence.push({ status: "謎の生物が動いています…摘出！", tool: "FORCEPS", phase: "OPEN" });
+                requiredSequence.push({ status: "産み付けられた卵を焼却", tool: "E_KNIFE", phase: "OPEN" });
+                break;
+            case "GHOST": 
+                requiredSequence.push({ status: "黒い霧(エクトプラズム)を吸引", tool: "SUCTION", phase: "OPEN" });
+                requiredSequence.push({ status: "憑依部位を浄化(洗浄)", tool: "IRRIGATION", phase: "OPEN" });
+                break;
+        }
+        
+        requiredSequence.push({ status: "術野を洗浄してください", tool: "IRRIGATION", phase: "OPEN" });
+
+        const insertPos = Math.floor(Math.random() * (requiredSequence.length - 4)) + 4;
+        const events = [
+            { status: "血圧低下！昇圧してください", tool: "CARDIO_DRUG", phase: "EMERGENCY" },
+            { status: "出血多量！輸血が必要です", tool: "TRANSFUSION", phase: "EMERGENCY" },
+            { status: "心室細動(Vf)発生！除細動！", tool: "DEFIB", phase: "EMERGENCY" }
+        ];
+        if (Math.random() < 0.3 + (stage * 0.05)) {
+            const evt = events[Math.floor(Math.random() * events.length)];
+            requiredSequence.splice(insertPos, 0, evt);
+        }
+    }
+    
+    function nextTask() {
+        lastActionTime = Date.now();
+        if (requiredSequence.length > 0) {
+            currentTask = requiredSequence.shift();
+            if (currentTask.tool === 'DEFIB') heartRate = 0; 
+            else if (currentTask.tool === 'CARDIO_DRUG' || currentTask.tool === 'TRANSFUSION') heartRate = 40; 
+            else heartRate = 80; 
+            updateBars();
+            updateMonitor();
+        } else {
+            currentTask = { status: "処置完了。閉腹可能です", tool: "SUTURES" };
+            heartRate = 80;
+            updateBars();
+            updateMonitor();
+        }
+    }
+
+    function updateMonitor() {
+        if(!gameActive) return;
+        const statusEl = document.getElementById('status-text');
+        statusEl.innerText = currentTask.status;
+        statusEl.style.color = (currentTask.phase === 'EMERGENCY') ? 'var(--cga-magenta)' : 'var(--cga-cyan)';
+    }
+
+    function calculateScore() {
+        const now = Date.now();
+        const diff = now - lastActionTime;
+        const timeBonus = Math.max(0, 5000 - diff) / 10;
+        const baseScore = 100;
+        const comboMultiplier = 1.0 + (combo * 0.1);
+        
+        const earned = Math.floor((baseScore + timeBonus) * comboMultiplier);
+        score += earned;
+        combo++;
+        return earned;
+    }
+
+    function executeCommand(toolKey) {
+        checkAudioContext();
+        if (!gameActive || isTyping) return;
+
+        typeLog(`> ${TOOLS[toolKey].name} 使用...`);
+
+        if (toolKey === 'BANDAGE') {
+             if (currentTask.tool === 'BANDAGE') {
+                 calculateScore();
+                 handleSuccess(toolKey);
+                 setTimeout(generateSuccessReport, 1000); 
+             } else {
+                 generateFailure(toolKey, "NORMAL"); 
+             }
+             return;
+        }
+
+        if (toolKey === 'DEFIB') {
+            if (currentTask.tool === 'DEFIB') {
+                heartRate = 80; updateBars();
+                handleSuccess(toolKey);
+            } else {
+                generateFailure(toolKey, "NORMAL");
+            }
+            return;
+        }
+
+        if (toolKey === 'POOP') {
+            generateFailure(toolKey, "POOP");
+            return;
+        }
+
+        if (toolKey === currentTask.tool) {
+            handleSuccess(toolKey);
+        } else {
+            if (toolKey === 'SUTURES') {
+                generateFailure(toolKey, "UNFINISHED");
+            } else {
+                generateFailure(toolKey, "NORMAL");
+            }
+        }
+    }
+
+    function handleSuccess(toolKey) {
+        if (toolKey === 'SCALPEL') {
+            document.getElementById('visual-display').className = 'bg-surgery';
+            typeLog("開腹。", "log-danger");
+        }
+        calculateScore(); 
+        typeLog(`OK: ${TOOLS[toolKey].action}`, "log-success");
+
+        if (toolKey === 'SUTURES') {
+            if (requiredSequence.length === 0) {
+                document.getElementById('visual-display').className = 'bg-win'; 
+                typeLog("閉腹完了。", "log-success");
+                currentTask = { status: "術部保護が必要です", tool: "BANDAGE" };
+                updateMonitor();
+                return; 
+            }
+        }
+        
+        if (toolKey !== 'BANDAGE') nextTask();
+    }
+
+    function generateSuccessReport() {
+        isMonitorSoundEnabled = false; 
+        
+        // 成功をローカルストレージに記録
+        saveRecord(currentScenarioType);
+
+        let title = SCENARIO_NAMES[currentScenarioType] || currentScenarioType;
+        let desc = "";
+        
+        switch(currentScenarioType) {
+            case "TUMOR": desc = "後腹膜腫瘍の摘出術。腫瘍と周囲組織との剥離は慎重に行われ、主要血管への浸潤もなく完全切除に成功。病理診断待ちだが肉眼的には被膜も保たれている。"; break;
+            case "ANEURYSM": desc = "未破裂脳動脈瘤クリッピング術。シルビウス裂を展開し瘤頚部を確保。穿通枝を巻き込むことなくクリップを完了し、将来的な破裂リスクを回避した。"; break;
+            case "TRAUMA": desc = "腹部刺創による緊急開腹止血術。腸間膜動脈からの出血を認め凝固止血。腸管損傷は認められず、腹腔内洗浄後に閉腹。循環動態は安定。"; break;
+            case "BYPASS": desc = "大腿膝窩動脈バイパス術。狭窄部位を迂回し人工血管を置換。術後直ちに足背動脈の拍動再開を確認。虚血肢の救済に成功。"; break;
+            case "APPENDICITIS": desc = "急性虫垂炎に対する虫垂切除術。炎症は高度であったが穿孔はなく、限局性腹膜炎にとどまっていた。虫垂根部の結紮処理も問題なし。"; break;
+            case "CESAREAN": desc = "緊急帝王切開術。胎児機能不全の徴候あり急速遂娩を選択。児のApgarスコアは良好。子宮収縮も良好で弛緩出血の兆候なし。母子共に予後良好。"; break;
+            case "CHOLECYST": desc = "胆嚢摘出術。胆嚢管および胆嚢動脈の同定・処理は円滑に行われた。Calot三角の解剖学的変異もなく、胆汁漏出も認められない。"; break;
+            case "HERNIA": desc = "鼠径ヘルニア修復術（メッシュ法）。ヘルニア嚢を高位結紮し、腹壁欠損部を補強。再発リスクを最小限に抑える適切な処置が行われた。"; break;
+            case "TRANSPLANT": desc = "生体腎移植術。ドナー腎の血管吻合は虚血時間を最小限に抑えて完了。血流再開直後より排尿を確認。超急性拒絶反応の所見なし。"; break;
+            case "FOREIGN_BODY": desc = "消化管内異物除去術。誤飲された硬貨が幽門部で停滞していたため、胃切開により摘出。粘膜損傷は軽微であり、合併症のリスクは低い。"; break;
+            case "VALVE": desc = "大動脈弁置換術。高度石灰化を伴う大動脈弁狭窄に対し、機械弁への置換を施行。人工心肺からの離脱も順調であり、血行動態は劇的に改善した。"; break;
+            case "ABSCESS": desc = "深頸部膿瘍切開排膿術。膿瘍腔を開放し、大量の排膿と洗浄を行った。気道閉塞のリスクは解除され、炎症反応の速やかな改善が期待される。"; break;
+            case "COMPOSITE_A": desc = "癒着剥離および腫瘍摘出術。既往手術による強固な癒着を剥離中に腫瘍を確認。出血コントロール下に摘出を完了した難易度の高い症例。"; break;
+            case "COMPOSITE_B": desc = "多発外傷に対するダメージコントロール手術。主要血管の結紮と臓器修復を優先し、致死的トライアド（低体温・酸性血症・凝固障害）を回避した。"; break;
+            case "MYSTERY": desc = "寄生虫摘出術。宿主の臓器深部に浸食していた未知の寄生生物を完全摘出。産卵された卵も焼却処理し、播種を防ぐことに成功。"; break;
+            case "GHOST": desc = "心霊的外科治療。患者に憑依していた悪性霊障（エクトプラズム）を物理的に吸引・浄化。医学では説明のつかない不定愁訴の消失を確認。"; break;
+        }
+
+        const fullText = `[手術記録]\n症例: ${title}\n\n[医学的所見]\n${desc}\n\n総スコア: ${score}`;
+        gameWin(fullText);
+    }
+
+    function generateFailure(wrongTool, type) {
+        gameActive = false;
+        enableControlButtons(false);
+        const face = document.getElementById('doctor-face');
+        face.style.transform = ''; 
+        face.className = 'face-death'; 
+        playFlatlineSound();
+        heartRate = 0; updateBars(); isFlatline = true;
+        typeLog(`!! 死亡確認 !!`, "log-danger");
+
+        const wName = TOOLS[wrongTool].name;
+        let reason = "";
+
+        if (type === "POOP") {
+            reason = `【死因: 糞便性劇症腹膜炎および敗血症性ショック】\n
+術野への便の直接投入という常軌を逸した行為により、グラム陰性桿菌（大腸菌等）および嫌気性菌が腹腔内へ大量播種された。
+これにより爆発的な炎症性サイトカインの放出（サイトカインストーム）が惹起され、数分以内に不可逆的なエンドトキシンショックへ移行。
+播種性血管内凝固症候群(DIC)と多臓器不全(MOF)を併発し、救命不可能となった。医学史に残る蛮行である。`;
+        }
+        else if (type === "UNFINISHED") {
+            reason = `【死因: 術後出血および腹腔内感染】\n
+止血操作や病変除去などの必須手技を完了しないまま閉腹したことにより、術直後より腹腔内での持続的出血が発生。
+循環血液量の減少による出血性ショックに加え、残留した壊死組織や感染源により重篤な腹膜炎を併発。
+外科的処置の基本原則である「確実な止血とドレナージ」の放棄による人為的ミスである。`;
+        }
+        else if (currentTask.tool === 'ANESTHESIA' && !['ANESTHESIA','ANTISEPTIC'].includes(wrongTool)) {
+            reason = `【死因: 神経原性ショックおよび致死性不整脈】\n
+麻酔導入による鎮静・鎮痛を行わない状態で高度な侵襲手技を加えたため、患者は耐え難い激痛に曝露された。
+これにより交感神経系が過剰に興奮し、血中カテコラミン濃度が急激に上昇（カテコラミン・サージ）。
+心筋の酸素需要増大と電気的不安定性を招き、心室細動(Vf)等の致死性不整脈を誘発し心停止に至った。`;
+        }
+        else {
+            switch(wrongTool) {
+                case "ANESTHESIA":
+                    reason = `【死因: 麻酔薬中毒および呼吸循環抑制】\n
+術中における麻酔薬の過剰投与により、延髄の呼吸中枢および血管運動中枢が抑制された。
+自発呼吸の停止に加え、心筋収縮力の低下と末梢血管拡張による急激な血圧低下（ショック）が発生。
+薬物動態学的モニタリングの欠如による医原性の心停止である。`; break;
+                case "ANTISEPTIC":
+                    reason = `【死因: 化学性腹膜炎および組織壊死】\n
+高濃度の消毒剤を臓器へ直接散布したことにより、腹膜および臓器表面のタンパク変性と細胞膜損傷が発生。
+広範囲な化学熱傷様の組織壊死を引き起こし、二次的な炎症反応と浸出液の貯留により循環動態が破綻した。
+組織毒性を考慮しない薬剤選択ミスによるものである。`; break;
+                case "SCALPEL":
+                    reason = `【死因: 医原性大血管損傷による失血死】\n
+鋭的切開操作の誤りにより、深部の主要動脈（大動脈または主要分枝）を全層切断した。
+動脈圧による急速かつ大量の出血（毎分数リットル）が発生し、有効な圧迫止血を行う間もなく循環血液量が枯渇。
+出血性ショックによる心停止に至った。`; break;
+                case "RETRACTOR":
+                    reason = `【死因: 緊張性気胸および心タンポナーデ】\n
+開創器による過度な牽引操作が胸郭に及び、肋骨骨折と肺実質の損傷を誘発。
+胸腔内圧の上昇により静脈還流が阻害される緊張性気胸、あるいは骨片による心嚢穿刺に伴う心タンポナーデを発症。
+閉塞性ショックによる心停止である。`; break;
+                case "SUCTION":
+                    reason = `【死因: 腸管穿孔および腹膜炎】\n
+吸引管による陰圧が脆弱な腸管壁に直接作用し、粘膜の吸着・剥離および全層穿孔を引き起こした。
+腸内容物の腹腔内漏出により、急性汎発性腹膜炎を発症。細菌性ショックへの移行が急速であり救命に至らなかった。`; break;
+                case "FORCEPS":
+                    reason = `【死因: 迷走神経反射および臓器裂傷】\n
+把持操作の誤りにより、神経束あるいは実質臓器を牽引・引き抜いた。
+強烈な迷走神経反射による徐脈・心停止、あるいは肝・脾などの実質臓器裂傷による大量出血を併発。
+愛護的（gentle）な組織操作の欠如が招いた結果である。`; break;
+                case "E_KNIFE":
+                    reason = `【死因: 腸管内ガス爆発および熱傷】\n
+電気メスの高周波電流が腸管内の可燃性ガス（水素・メタン等）に引火し、腹腔内で爆発が発生。
+爆風による横隔膜破裂や胸腔内臓器の損傷、および広範囲の熱傷により、即時的な心肺停止を来した。`; break;
+                case "CLIP":
+                    reason = `【死因: 医原性虚血性壊死】\n
+温存すべき主要栄養血管を誤ってクリッピングし、血流を完全に遮断した。
+標的臓器（脳・心臓・腸管等）の広範な虚血性壊死（梗塞）が進行し、不可逆的な臓器機能不全に陥った。
+解剖学的構造の誤認による重大な過誤である。`; break;
+                case "GRAFT":
+                    reason = `【死因: 血管破裂および仮性動脈瘤形成】\n
+口径不適合な人工血管の無理な置換操作により、吻合部に過大な張力が加わり血管壁が破綻。
+動脈圧による拍動性出血と、形成された仮性動脈瘤の破裂により、急速な循環虚脱を招いた。`; break;
+                case "IRRIGATION":
+                    reason = `【死因: 水中毒および希釈性低ナトリウム血症】\n
+洗浄用生理食塩水の過剰かつ急速な注入、あるいは低張液の誤使用により、血管内への水分移行が亢進。
+急激な血液希釈と電解質バランスの崩壊（低ナトリウム血症）により、脳浮腫および肺水腫を併発し死亡した。`; break;
+                case "BANDAGE":
+                    reason = `【死因: 気道閉塞による窒息】\n
+術後被覆材である包帯を頸部および胸郭に対して過剰な圧迫力で巻き付けたため、物理的な気道閉塞と胸郭運動制限が発生。
+換気不全による重篤な低酸素血症と高二酸化炭素血症を来し、窒息による心停止に至った。`; break;
+                case "DEFIB":
+                    reason = `【死因: R-on-T現象による心室細動】\n
+洞調律（正常心拍）が維持されている心臓に対し、受攻期（T波の頂点付近）に電気ショックを与えた。
+これにより電気的興奮の不均一が生じ、致死性不整脈である心室細動(Vf)が誘発され、逆説的に心停止を招いた。`; break;
+                case "CARDIO_DRUG":
+                    reason = `【死因: 心破裂および高血圧性脳出血】\n
+強心・昇圧薬の不適切な過量投与により、心筋収縮力と血圧が異常なレベルまで上昇。
+心室内圧の急上昇に心壁が耐えきれず心破裂（左室自由壁破裂）、あるいは脳血管の破綻による大量脳出血を引き起こした。`; break;
+                case "TRANSFUSION":
+                    reason = `【死因: 溶血性輸血反応】\n
+ABO式血液型の不適合輸血により、抗原抗体反応による急激な血管内溶血が発生。
+遊離ヘモグロビンによる急性腎不全、および播種性血管内凝固(DIC)の併発により、多臓器不全に至り死亡した。`; break;
+                default:
+                    reason = `【死因: 術中管理不全】\n
+[${wName}]の医学的適応のない使用により、患者の生理学的恒常性が破綻。
+予期せぬ生体反応と合併症の連鎖により、救命困難な状態に陥った。`;
+            }
+        }
+
+        const report = `[検死報告]\n誤選択: [${wName}]\n正解: [${TOOLS[currentTask.tool].name}]\n\n${reason}`;
+        setTimeout(() => gameOver(report), 2000);
+    }
+
+    function typeText(element, text, speed, callback) {
+        let i = 0; isTyping = true; element.innerHTML = "";
+        const span = document.createElement('span');
+        element.appendChild(span); element.classList.add('cursor');
+        function type() {
+            if (i < text.length) {
+                span.innerText += text.charAt(i); i++;
+                if(element.id==='log-area'||element.parentElement.id==='log-area') 
+                    document.getElementById('log-area').scrollTop = document.getElementById('log-area').scrollHeight;
+                setTimeout(type, speed);
+            } else {
+                element.classList.remove('cursor'); isTyping = false;
+                if (callback) callback();
+            }
+        }
+        type();
+    }
+
+    function typeLog(text, className = "") {
+        const area = document.getElementById('log-area');
+        const div = document.createElement('div');
+        div.className = `log-entry ${className}`;
+        area.appendChild(div);
+        typeText(div, text, 15, null);
+    }
+
+    function enableControlButtons(enabled) {
+        const buttons = document.querySelectorAll('#controls-area .cmd-btn');
+        buttons.forEach(btn => btn.disabled = !enabled);
+    }
+
+    function gameWin(text) {
+        document.getElementById('visual-display').className = 'bg-win';
+        const overlay = document.getElementById('end-overlay');
+        overlay.classList.remove('hidden');
+        document.getElementById('end-title').innerText = "手術成功";
+        document.getElementById('end-title').style.color = "var(--cga-cyan)";
+        document.getElementById('btn-next').classList.remove('hidden');
+        document.getElementById('btn-title').classList.add('hidden');
+        typeText(document.getElementById('end-msg'), text, 20, null);
+        document.getElementById('final-score').innerText = score;
+        reportScore(score);
+    }
+
+    function gameOver(reportText) {
+        document.getElementById('visual-display').className = 'bg-loss';
+        const overlay = document.getElementById('end-overlay');
+        overlay.classList.remove('hidden');
+        document.getElementById('end-title').innerText = "死亡確認";
+        document.getElementById('end-title').style.color = "var(--cga-magenta)";
+        document.getElementById('btn-next').classList.add('hidden');
+        document.getElementById('btn-title').classList.remove('hidden');
+        typeText(document.getElementById('end-msg'), reportText, 20, null);
+        document.getElementById('final-score').innerText = score;
+        reportScore(score);
+    }
+
+    function reportScore(finalScore) {
+        if (window.parent) window.parent.postMessage({ type: 'gameOver', score: finalScore }, '*');
+    }
+
+    function drawECG() {
+        if (!gameActive && !isFlatline) return;
+        const w = ecgCtx.canvas.width;
+        const h = ecgCtx.canvas.height;
+        const midH = h / 2;
+        ecgCtx.lineWidth = 2;
+        ecgCtx.lineCap = 'round';
+        ecgCtx.fillStyle = 'rgba(5, 17, 17, 0.2)';
+        ecgCtx.fillRect(0, 0, w, h);
+        ecgCtx.beginPath();
+        ecgCtx.strokeStyle = isFlatline ? '#ff0000' : '#55ffff';
+        ecgCtx.moveTo(ecgX, midH);
+        const speed = 2; 
+        ecgX += speed;
+        if (ecgX > w) ecgX = 0;
+        let y = midH;
+        if (!isFlatline) {
+            const beatWidth = w/3;
+            const beatPos = ecgX % beatWidth; 
+            if (heartRate > 0) {
+                if (beatPos > 50 && beatPos < 60) y = midH - 25; 
+                else if (beatPos >= 60 && beatPos < 70) y = midH + 15; 
+                else if (beatPos >= 70 && beatPos < 80) y = midH - 5; 
+                if (beatPos >= 50 && beatPos < 50 + speed) playHeartbeat();
+            }
+            y += (Math.random() - 0.5) * 2;
+        } else {
+            y = midH;
+        }
+        ecgCtx.lineTo(ecgX, y);
+        ecgCtx.stroke();
+        if (gameActive || isFlatline) {
+            animationFrameId = requestAnimationFrame(drawECG);
+        }
+    }
+</script>
+</body>
+</html>
